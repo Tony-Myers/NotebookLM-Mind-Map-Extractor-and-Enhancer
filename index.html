@@ -1,0 +1,2828 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NotebookLM-Style Mind Map Generator</title>
+<style>
+    :root{
+        --bg: #f8fafc;
+        --panel: #ffffff;
+        --text: #334155;
+        --muted: #64748b;
+        --border: #e2e8f0;
+        --border-strong: #cbd5e1;
+        --accent: #4f46e5;
+        --accent-dark: #4338ca;
+        --danger: #ef4444;
+        --danger-dark: #dc2626;
+        --chip: #f1f5f9;
+        --success: #10b981;
+    }
+    *{ box-sizing: border-box; }
+    body{
+        font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        max-width: 980px;
+        margin: 40px auto;
+        padding: 20px;
+        line-height: 1.5;
+        background: var(--bg);
+        color: var(--text);
+    }
+    .container{
+        background: var(--panel);
+        padding: 28px 30px 34px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.08);
+        border: 1px solid var(--border);
+    }
+    h1{
+        margin: 0 0 6px 0;
+        font-size: 1.4rem;
+        color: #0f172a;
+    }
+    .sub{
+        margin: 0 0 18px 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+    }
+
+    /* Mode Switch */
+    .mode-switch{
+        display: flex;
+        gap: 0;
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        overflow: hidden;
+        margin: 18px 0 22px 0;
+        background: var(--chip);
+    }
+    .mode-option{
+        flex: 1;
+        text-align: center;
+        padding: 12px 10px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: var(--muted);
+        background: var(--chip);
+        transition: background 0.2s, color 0.2s;
+        user-select: none;
+    }
+    .mode-option:hover{ background: #e2e8f0; }
+    .mode-option.active{
+        background: var(--accent);
+        color: #ffffff;
+    }
+
+    label{
+        display:block;
+        margin-top: 12px;
+        font-weight: 600;
+        color: #475569;
+        font-size: 0.95rem;
+    }
+    input[type="text"]{
+        width: 100%;
+        padding: 10px 12px;
+        margin-top: 6px;
+        border: 1px solid var(--border-strong);
+        border-radius: 6px;
+        font-size: 1rem;
+    }
+    textarea{
+        width: 100%;
+        height: 270px;
+        padding: 12px;
+        margin-top: 8px;
+        border: 1px solid var(--border-strong);
+        border-radius: 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+        font-size: 0.9rem;
+        white-space: pre;
+        overflow-wrap: normal;
+        overflow-x: auto;
+        background: #ffffff;
+    }
+
+    .section{ display:none; }
+    .section.active{ display:block; }
+
+    /* Buttons */
+    .btn-row{
+        display:flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 10px 0 12px;
+    }
+    button{
+        border: none;
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s, opacity 0.2s;
+    }
+    .btn-primary{ background: var(--accent); color: #fff; }
+    .btn-primary:hover{ background: var(--accent-dark); }
+    .btn-secondary{ background: #64748b; color: #fff; }
+    .btn-secondary:hover{ background: #475569; }
+    .btn-ghost{ background: #e2e8f0; color: #0f172a; }
+    .btn-ghost:hover{ background: #dbe3ef; }
+    .btn-danger{ background: var(--danger); color: #fff; }
+    .btn-danger:hover{ background: var(--danger-dark); }
+    .btn-success{ background: var(--success); color: #fff; }
+    .btn-success:hover{ background: #059669; }
+    button:disabled{ opacity: 0.5; cursor: not-allowed; }
+
+    /* Builder list */
+    .builder-container{
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 14px;
+        background: #f8fafc;
+    }
+    .builder-help{
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin: 0 0 10px 0;
+    }
+    .node-list{
+        background: #fff;
+        border: 1px solid var(--border-strong);
+        border-radius: 6px;
+        padding: 6px;
+        max-height: 320px;
+        overflow-y: auto;
+    }
+    .node-item{
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 10px;
+        margin: 3px 0;
+        background: #f1f5f9;
+        border-left: 3px solid var(--accent);
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+    }
+    .node-item.selected{
+        outline: 2px solid #a5b4fc;
+        background: #eef2ff;
+    }
+    .node-indent{
+        display:inline-block;
+        width: 0;
+    }
+    .node-badge{
+        font-size: 0.7rem;
+        padding: 2px 6px;
+        background: #0f172a;
+        color: white;
+        border-radius: 999px;
+        margin-left: auto;
+        opacity: 0.85;
+        flex-shrink: 0;
+    }
+    .thumb{
+        width: 34px;
+        height: 24px;
+        object-fit: cover;
+        border-radius: 3px;
+        border: 1px solid var(--border-strong);
+        background: #fff;
+        flex-shrink: 0;
+    }
+    .attached-thumb{
+        width: 28px;
+        height: 20px;
+        object-fit: cover;
+        border-radius: 3px;
+        border: 1px solid #a5b4fc;
+        background: #fff;
+        flex-shrink: 0;
+        margin-right: 2px;
+    }
+    .doc-badge{
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 0.7rem;
+        padding: 2px 6px;
+        background: #dbeafe;
+        color: #1e40af;
+        border-radius: 999px;
+        flex-shrink: 0;
+        margin-right: 2px;
+    }
+    .doc-badge svg{
+        width: 10px;
+        height: 10px;
+        fill: #1e40af;
+    }
+    .doc-list-popup{
+        position: fixed;
+        background: #fff;
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        padding: 8px;
+        z-index: 9999;
+        max-width: 320px;
+        font-size: 0.85rem;
+    }
+    .doc-list-popup .doc-entry{
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 8px;
+        border-radius: 4px;
+        cursor: default;
+    }
+    .doc-list-popup .doc-entry:hover{
+        background: #f1f5f9;
+    }
+    .doc-list-popup .doc-entry .doc-name{
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .doc-list-popup .doc-entry .doc-size{
+        font-size: 0.75rem;
+        color: var(--muted);
+        flex-shrink: 0;
+    }
+    .doc-list-popup .doc-entry .doc-remove{
+        cursor: pointer;
+        color: var(--danger);
+        font-weight: 700;
+        padding: 0 4px;
+        flex-shrink: 0;
+    }
+    .doc-list-popup .doc-entry .doc-remove:hover{
+        color: var(--danger-dark);
+    }
+    .link-badge{
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 0.7rem;
+        padding: 2px 6px;
+        background: #d1fae5;
+        color: #065f46;
+        border-radius: 999px;
+        flex-shrink: 0;
+        margin-right: 2px;
+    }
+    .link-badge svg{
+        width: 10px;
+        height: 10px;
+        fill: #065f46;
+    }
+    .node-text{
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* Inline edit input */
+    .inline-edit{
+        flex: 1;
+        min-width: 0;
+        border: 1px solid var(--accent);
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 0.9rem;
+        font-family: inherit;
+        outline: none;
+    }
+
+    /* Drop zone overlays for OPML */
+    .textarea-container{
+        position: relative;
+    }
+    .drop-zone-overlay{
+        position:absolute;
+        inset: 0;
+        border: 2px dashed transparent;
+        border-radius: 6px;
+        display:flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        transition: border-color 0.2s, background 0.2s;
+    }
+    .drop-zone-overlay.active{
+        border-color: #93c5fd;
+        background: rgba(147,197,253,0.12);
+    }
+    .drop-zone-overlay.active-opml{
+        border-color: #86efac;
+        background: rgba(134,239,172,0.12);
+    }
+    .drop-zone-text{
+        font-size: 1rem;
+        color: #334155;
+        background: rgba(255,255,255,0.9);
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+    }
+
+    .tip{
+        background: #e0e7ff;
+        color: #3730a3;
+        padding: 10px 12px;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        margin-top: 10px;
+        border-left: 4px solid var(--accent);
+    }
+
+    .processing{
+        display:none;
+        margin-top: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #15803d;
+    }
+    .processing.show{ display:block; }
+
+    /* Keyboard shortcuts legend */
+    .shortcuts{
+        background: #fef3c7;
+        color: #92400e;
+        padding: 10px 12px;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        margin-top: 10px;
+        border-left: 4px solid #f59e0b;
+    }
+    .shortcuts kbd{
+        background: #fff;
+        border: 1px solid #d1d5db;
+        border-radius: 3px;
+        padding: 1px 5px;
+        font-family: ui-monospace, monospace;
+        font-size: 0.75rem;
+        box-shadow: 0 1px 0 #d1d5db;
+    }
+
+    /* Main download */
+    .download-btn{
+        width: 100%;
+        padding: 14px 20px;
+        font-size: 1rem;
+        border-radius: 10px;
+        margin-top: 24px;
+    }
+
+    .divider{
+        height: 1px;
+        background: var(--border);
+        margin: 18px 0;
+    }
+
+    /* Save/load section */
+    .save-load-row{
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+        flex-wrap: wrap;
+    }
+    .autosave-indicator{
+        font-size: 0.8rem;
+        color: var(--muted);
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .autosave-indicator.saved{
+        color: var(--success);
+    }
+
+    /* NotebookLM Import section */
+    .bookmarklet-link{
+        display: inline-block;
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        color: #fff;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.95rem;
+        text-decoration: none;
+        cursor: grab;
+        user-select: none;
+        box-shadow: 0 2px 8px rgba(79,70,229,0.3);
+        transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .bookmarklet-link:hover{
+        box-shadow: 0 4px 14px rgba(79,70,229,0.4);
+        transform: translateY(-1px);
+    }
+    .bookmarklet-link:active{
+        cursor: grabbing;
+    }
+    .import-steps{
+        margin: 16px 0;
+        padding: 0;
+        list-style: none;
+        counter-reset: step-counter;
+    }
+    .import-steps li{
+        counter-increment: step-counter;
+        padding: 10px 12px 10px 44px;
+        position: relative;
+        font-size: 0.9rem;
+        color: var(--text);
+        border-left: 2px solid var(--border);
+        margin-left: 14px;
+    }
+    .import-steps li:last-child{
+        border-left-color: transparent;
+    }
+    .import-steps li::before{
+        content: counter(step-counter);
+        position: absolute;
+        left: -13px;
+        top: 8px;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: #fff;
+        font-size: 0.75rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .import-steps li strong{
+        color: #0f172a;
+    }
+    .import-paste-area{
+        width: 100%;
+        height: 180px;
+        padding: 12px;
+        margin-top: 8px;
+        border: 2px dashed var(--border-strong);
+        border-radius: 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.85rem;
+        white-space: pre;
+        overflow-wrap: normal;
+        overflow-x: auto;
+        background: #fafbfc;
+        transition: border-color 0.2s;
+    }
+    .import-paste-area:focus{
+        border-color: var(--accent);
+        outline: none;
+        background: #fff;
+    }
+    .import-preview{
+        margin-top: 12px;
+        padding: 12px;
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        color: #166534;
+        display: none;
+    }
+    .import-preview.show{ display: block; }
+    .import-preview .tree-text{
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        white-space: pre;
+        overflow-x: auto;
+        max-height: 200px;
+        overflow-y: auto;
+        margin-top: 8px;
+        padding: 8px;
+        background: #fff;
+        border-radius: 4px;
+        border: 1px solid #dcfce7;
+    }
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>NotebookLM-Style Mind Map Generator —  <i>Tony Myers</h1>
+    <p class="sub">A single-file, offline-friendly generator that creates an interactive, NotebookLM-like mind map HTML. Supports building from scratch, importing OPML, or extracting directly from NotebookLM. </p>
+
+    <div class="mode-switch">
+        <div class="mode-option active" id="btn-builder" onclick="setMode('builder')">Visual Builder</div>
+        <div class="mode-option" id="btn-opml" onclick="setMode('opml')">OPML Code</div>
+        <div class="mode-option" id="btn-notebooklm" onclick="setMode('notebooklm')">NotebookLM Import</div>
+    </div>
+
+    <label for="mapTitle">Map title</label>
+    <input type="text" id="mapTitle" placeholder="e.g., Regression">
+
+    <label for="layoutSelect" style="margin-top:14px;">Default layout</label>
+    <select id="layoutSelect" style="width:100%;padding:10px 12px;margin-top:6px;border:1px solid var(--border-strong);border-radius:6px;font-size:1rem;background:#fff;">
+        <option value="ltr">Left to Right (tree)</option>
+        <option value="radial">Radial (centre out)</option>
+        <option value="ttb">Top to Bottom (tree)</option>
+    </select>
+
+    <!-- BUILDER MODE -->
+    <div class="section active" id="section-builder">
+        <div class="builder-container">
+            <p class="builder-help">
+                Click a node to select it. Double-click to rename. Use the buttons or keyboard shortcuts to build your map.
+                Images will be stored as embedded data URLs inside the output file.
+            </p>
+
+            <div class="btn-row">
+                <button class="btn-primary" onclick="addRoot()">Add root</button>
+                <button class="btn-ghost" id="addSiblingBtn" onclick="addSibling()" disabled>Add sibling</button>
+                <button class="btn-ghost" id="addChildBtn" onclick="addChild()" disabled>Add child</button>
+                <button class="btn-ghost" id="indentBtn" onclick="indentNode()" disabled>Indent</button>
+                <button class="btn-ghost" id="outdentBtn" onclick="outdentNode()" disabled>Outdent</button>
+                <button class="btn-ghost" id="moveUpBtn" onclick="moveNode(-1)" disabled>Move up</button>
+                <button class="btn-ghost" id="moveDownBtn" onclick="moveNode(1)" disabled>Move down</button>
+                <button class="btn-danger" id="deleteBtn" onclick="deleteNode()" disabled>Delete</button>
+
+                <button class="btn-secondary" id="addImageBtn" onclick="document.getElementById('imageInputBuilder').click()" disabled>Add image child</button>
+                <input type="file" id="imageInputBuilder" accept="image/*" style="display:none" onchange="handleBuilderImage()">
+                <button class="btn-secondary" id="attachImageBtn" onclick="document.getElementById('attachImageInput').click()" disabled>Attach image</button>
+                <input type="file" id="attachImageInput" accept="image/*" style="display:none" onchange="handleAttachImage()">
+                <button class="btn-ghost" id="removeAttachedImageBtn" onclick="removeAttachedImage()" style="display:none">Remove image</button>
+
+                <button class="btn-secondary" id="attachDocBtn" onclick="document.getElementById('attachDocInput').click()" disabled>Attach document</button>
+                <input type="file" id="attachDocInput" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.rtf,.odt" style="display:none" onchange="handleAttachDoc()" multiple>
+                <button class="btn-ghost" id="viewDocsBtn" onclick="showDocList()" style="display:none">View docs</button>
+
+                <button class="btn-secondary" id="addLinkBtn" onclick="addLink()" disabled>Add link</button>
+                <button class="btn-ghost" id="viewLinksBtn" onclick="showLinkList()" style="display:none">View links</button>
+            </div>
+
+            <div class="node-list" id="nodeList" tabindex="0"></div>
+
+            <div class="shortcuts">
+                <strong>Keyboard:</strong>
+                <kbd>Enter</kbd> add sibling &nbsp;
+                <kbd>Tab</kbd> add child &nbsp;
+                <kbd>Delete</kbd> delete &nbsp;
+                <kbd>←</kbd> outdent &nbsp;
+                <kbd>→</kbd> indent &nbsp;
+                <kbd>↑</kbd>/<kbd>↓</kbd> move &nbsp;
+                <kbd>Esc</kbd> deselect
+            </div>
+
+            <div class="tip">
+                <strong>How images work</strong><br>
+                <strong>Add image child</strong> inserts a standalone image node as a child of the selected node.<br>
+                <strong>Attach image</strong> adds an image directly to the selected node, displayed above its text label. Any node including the root can have an attached image.<br><br>
+                <strong>How document attachments work</strong><br>
+                <strong>Attach document</strong> embeds a PDF, Word, or other document file directly into a node. The document data is stored as base64 inside the output HTML, so the downloaded mind map is fully self-contained. Users can download attached documents by clicking the document icon on a node.<br>
+                <em>Note: Large documents will increase the output file size. A 1 MB PDF becomes approximately 1.33 MB when base64-encoded.</em>
+                <br><br>
+                <strong>How web links work</strong><br>
+                <strong>Add link</strong> attaches a URL (with an optional label) to the selected node. In the downloaded mind map, users can click the link icon on a node to see and open the attached links.
+            </div>
+
+            <div class="save-load-row">
+                <button class="btn-ghost" onclick="exportOPML()">Export OPML</button>
+                <button class="btn-ghost" onclick="document.getElementById('importOpmlInput').click()">Import OPML</button>
+                <input type="file" id="importOpmlInput" accept=".opml,.xml" style="display:none" onchange="importOPML()">
+                <button class="btn-ghost" onclick="clearBuilder()">Clear all</button>
+                <span class="autosave-indicator" id="autosaveIndicator">
+                    <span id="autosaveIcon">○</span> <span id="autosaveText">Not saved</span>
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- OPML MODE -->
+    <div class="section" id="section-opml">
+        <label for="opmlData">Paste OPML code or drop an OPML file</label>
+        <div class="textarea-container">
+            <textarea id="opmlData" placeholder="<?xml version='1.0' encoding='UTF-8'?>
+<opml version='2.0'>
+    <body>
+        <outline text='Root'>
+            <outline text='Point 1' />
+            <outline text='IMAGE: https://example.com/img.png' />
+        </outline>
+    </body>
+</opml>"></textarea>
+            <div class="drop-zone-overlay" id="dropZoneOpml">
+                <div class="drop-zone-text" id="dropZoneText">📁 Drop image or OPML file here</div>
+            </div>
+        </div>
+
+        <div class="btn-row">
+            <button class="btn-secondary" onclick="document.getElementById('imageInputOpml').click()">Insert image at cursor</button>
+            <input type="file" id="imageInputOpml" accept="image/*" style="display:none" onchange="handleImageSelection('opmlData', 'processingOpml')">
+            <button class="btn-ghost" onclick="document.getElementById('opmlFileInput').click()">Load OPML file</button>
+            <input type="file" id="opmlFileInput" accept=".opml,.xml" style="display:none" onchange="loadOPMLFile()">
+        </div>
+        <div id="processingOpml" class="processing">✓ File processed and loaded.</div>
+
+        <div class="tip">
+            <strong>OPML input options:</strong><br>
+            • Paste OPML code directly into the text area<br>
+            • Drag and drop an <code>.opml</code> or <code>.xml</code> file onto the text area<br>
+            • Use the "Load OPML file" button to browse for a file<br>
+            • Drag and drop images to insert them at the cursor position
+        </div>
+    </div>
+
+    <!-- NOTEBOOKLM IMPORT MODE -->
+    <div class="section" id="section-notebooklm">
+        <div class="tip" style="margin-top:0; margin-bottom:16px;">
+            <strong>Extract mind maps from NotebookLM</strong><br>
+            This tool uses a bookmarklet to extract the mind map data directly from a NotebookLM page.
+            The extraction reads the internal D3.js data bindings, so it captures the full tree regardless of which nodes are expanded or collapsed.
+        </div>
+
+        <label style="margin-top:0;">Step 1 — Install the bookmarklet</label>
+        <p style="font-size:0.9rem; color:var(--muted); margin:6px 0 10px;">
+            Drag the button below to your browser bookmarks bar. You only need to do this once.
+        </p>
+        <a id="bookmarkletLink" class="bookmarklet-link" href="#" onclick="return false;">
+            📋 Extract NotebookLM Map
+        </a>
+
+        <label>Step 2 — Extract and paste</label>
+        <ol class="import-steps">
+            <li>Open a <strong>NotebookLM notebook</strong> that has a mind map</li>
+            <li>Click the <strong>Extract NotebookLM Map</strong> bookmarklet in your bookmarks bar</li>
+            <li>The OPML will be <strong>copied to your clipboard</strong>. A confirmation alert will show the node count.</li>
+            <li><strong>Paste</strong> the OPML into the box below (<kbd>Ctrl</kbd>+<kbd>V</kbd> or <kbd>Cmd</kbd>+<kbd>V</kbd>)</li>
+        </ol>
+
+        <label for="notebooklmData">Paste extracted OPML here</label>
+        <textarea id="notebooklmData" class="import-paste-area" placeholder="Paste the OPML copied from NotebookLM here..."></textarea>
+
+        <div class="import-preview" id="importPreview">
+            <strong id="importPreviewTitle">Preview</strong>
+            <div class="tree-text" id="importPreviewTree"></div>
+        </div>
+
+        <div class="btn-row" style="margin-top:12px;">
+            <button class="btn-ghost" onclick="loadToBuilder()">Load into Visual Builder</button>
+            <button class="btn-ghost" onclick="loadToOpml()">Load into OPML mode</button>
+        </div>
+
+        <div class="tip" style="margin-top:14px;">
+            <strong>Compatibility note:</strong> This extraction relies on NotebookLM rendering mind maps as SVG with D3.js data bindings
+            (specifically <code>g.node.__data__</code> on the SVG elements). If Google changes how NotebookLM renders mind maps,
+            the bookmarklet may need to be updated. The bookmarklet does not send any data externally — it only reads the page DOM
+            and copies OPML to your clipboard.
+        </div>
+    </div>
+
+    <button class="btn-primary download-btn" onclick="processAndDownload()">Download interactive mind map</button>
+</div>
+
+<script>
+/* -------------------------
+   STATE
+------------------------- */
+let currentMode = 'builder';
+let nodes = []; // flat list for builder: { text, level, isImage }
+let selectedNodeIndex = -1;
+let editingNodeIndex = -1;
+const STORAGE_KEY = 'notebooklm_mindmap_builder';
+
+/* -------------------------
+   MODE SWITCH
+------------------------- */
+function setMode(mode){
+    currentMode = mode;
+
+    document.getElementById('btn-builder').classList.toggle('active', mode === 'builder');
+    document.getElementById('btn-opml').classList.toggle('active', mode === 'opml');
+    document.getElementById('btn-notebooklm').classList.toggle('active', mode === 'notebooklm');
+
+    document.getElementById('section-builder').classList.toggle('active', mode === 'builder');
+    document.getElementById('section-opml').classList.toggle('active', mode === 'opml');
+    document.getElementById('section-notebooklm').classList.toggle('active', mode === 'notebooklm');
+
+    if(mode !== 'builder'){
+        selectedNodeIndex = -1;
+        editingNodeIndex = -1;
+        updateBuilderButtons();
+        renderNodes();
+    }
+}
+
+/* -------------------------
+   BUILDER UI
+------------------------- */
+function updateBuilderButtons(){
+    const hasSelection = selectedNodeIndex >= 0;
+
+    document.getElementById('addSiblingBtn').disabled = !hasSelection;
+    document.getElementById('addChildBtn').disabled = !hasSelection;
+    document.getElementById('indentBtn').disabled = !hasSelection || selectedNodeIndex === 0;
+    document.getElementById('outdentBtn').disabled = !hasSelection || nodes[selectedNodeIndex]?.level === 0;
+    document.getElementById('moveUpBtn').disabled = !hasSelection || selectedNodeIndex === 0;
+    document.getElementById('moveDownBtn').disabled = !hasSelection || selectedNodeIndex === nodes.length - 1;
+    document.getElementById('deleteBtn').disabled = !hasSelection;
+    document.getElementById('addImageBtn').disabled = !hasSelection;
+    document.getElementById('attachImageBtn').disabled = !hasSelection || (hasSelection && !!nodes[selectedNodeIndex]?.isImage);
+
+    const hasAttachedImage = hasSelection && !!nodes[selectedNodeIndex]?.attachedImage;
+    document.getElementById('removeAttachedImageBtn').style.display = hasAttachedImage ? 'inline-block' : 'none';
+
+    document.getElementById('attachDocBtn').disabled = !hasSelection;
+    const hasDocs = hasSelection && nodes[selectedNodeIndex]?.attachedDocs?.length > 0;
+    document.getElementById('viewDocsBtn').style.display = hasDocs ? 'inline-block' : 'none';
+
+    document.getElementById('addLinkBtn').disabled = !hasSelection;
+    const hasLinks = hasSelection && nodes[selectedNodeIndex]?.attachedLinks?.length > 0;
+    document.getElementById('viewLinksBtn').style.display = hasLinks ? 'inline-block' : 'none';
+}
+
+function renderNodes(){
+    const list = document.getElementById('nodeList');
+    if(!list) return;
+
+    if(nodes.length === 0){
+        list.innerHTML = `<div style="padding:12px;color:#64748b;font-size:0.9rem;">No nodes yet. Click <strong>Add root</strong> to begin.</div>`;
+        return;
+    }
+
+    list.innerHTML = "";
+    nodes.forEach((node, index) => {
+        const div = document.createElement('div');
+        div.className = "node-item" + (index === selectedNodeIndex ? " selected" : "");
+        div.style.marginLeft = (node.level * 18) + "px";
+
+        if(node.isImage){
+            const img = document.createElement('img');
+            img.className = "thumb";
+            img.src = extractImageSource(node.text);
+            div.appendChild(img);
+        } else if(node.attachedImage){
+            const img = document.createElement('img');
+            img.className = "attached-thumb";
+            img.src = node.attachedImage;
+            div.appendChild(img);
+        }
+
+        if(node.attachedDocs && node.attachedDocs.length > 0){
+            const docBadge = document.createElement('span');
+            docBadge.className = "doc-badge";
+            docBadge.innerHTML = '<svg viewBox="0 0 16 16"><path d="M4 1h5.5L14 5.5V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zm5 1v4h4"/></svg>' + node.attachedDocs.length;
+            docBadge.title = node.attachedDocs.map(d => d.name).join(", ");
+            div.appendChild(docBadge);
+        }
+
+        if(node.attachedLinks && node.attachedLinks.length > 0){
+            const linkBadge = document.createElement('span');
+            linkBadge.className = "link-badge";
+            linkBadge.innerHTML = '<svg viewBox="0 0 16 16"><path d="M6.354 5.354l-2 2a2.5 2.5 0 0 0 3.536 3.536l2-2m1.756-1.756l2-2a2.5 2.5 0 0 0-3.536-3.536l-2 2"/></svg>' + node.attachedLinks.length;
+            linkBadge.title = node.attachedLinks.map(l => l.label || l.url).join(", ");
+            div.appendChild(linkBadge);
+        }
+
+        if(editingNodeIndex === index && !node.isImage){
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'inline-edit';
+            input.value = node.text;
+            input.onclick = (e) => e.stopPropagation();
+            input.onblur = () => finishEditing(index, input.value);
+            input.onkeydown = (e) => {
+                if(e.key === 'Enter'){
+                    e.preventDefault();
+                    finishEditing(index, input.value);
+                } else if(e.key === 'Escape'){
+                    e.preventDefault();
+                    cancelEditing();
+                }
+            };
+            div.appendChild(input);
+            setTimeout(() => { input.focus(); input.select(); }, 0);
+        } else {
+            const label = document.createElement('span');
+            label.className = 'node-text';
+            label.textContent = node.isImage ? "Image" : node.text;
+            if(node.isImage){
+                label.style.fontStyle = "italic";
+            }
+            div.appendChild(label);
+        }
+
+        const badge = document.createElement('span');
+        badge.className = "node-badge";
+        badge.textContent = node.level === 0 ? "L1" : ("L" + (node.level+1));
+        div.appendChild(badge);
+
+        div.onclick = () => selectNode(index);
+        div.ondblclick = () => startEditing(index);
+
+        list.appendChild(div);
+    });
+}
+
+function selectNode(index){
+    if(editingNodeIndex >= 0) return; // Don't change selection while editing
+    selectedNodeIndex = index;
+    updateBuilderButtons();
+    renderNodes();
+}
+
+function startEditing(index){
+    if(nodes[index].isImage) return; // Cannot edit image nodes inline
+    editingNodeIndex = index;
+    selectedNodeIndex = index;
+    renderNodes();
+}
+
+function finishEditing(index, newText){
+    const cleaned = newText.trim();
+    if(cleaned.length > 0){
+        nodes[index].text = cleaned;
+    }
+    editingNodeIndex = -1;
+    updateBuilderButtons();
+    renderNodes();
+    saveToStorage();
+}
+
+function cancelEditing(){
+    editingNodeIndex = -1;
+    renderNodes();
+}
+
+/* -------------------------
+   BUILDER ACTIONS
+------------------------- */
+function promptForText(defaultValue=""){
+    const text = window.prompt("Node text:", defaultValue);
+    if(text === null) return null;
+    const cleaned = text.trim();
+    return cleaned.length ? cleaned : null;
+}
+
+function addRoot(){
+    if(nodes.length > 0){
+        const confirmNew = window.confirm("A root node already exists. Add another top-level node?");
+        if(!confirmNew) return;
+    }
+    const text = promptForText("Root");
+    if(!text) return;
+    nodes.push({ text, level: 0, isImage: false });
+    selectedNodeIndex = nodes.length - 1;
+    updateBuilderButtons();
+    renderNodes();
+    saveToStorage();
+}
+
+function findInsertIndexAfterSubtree(index){
+    const baseLevel = nodes[index].level;
+    let i = index + 1;
+    while(i < nodes.length && nodes[i].level > baseLevel){
+        i++;
+    }
+    return i;
+}
+
+function addSibling(){
+    if(selectedNodeIndex < 0) return;
+    const text = promptForText("");
+    if(!text) return;
+
+    const level = nodes[selectedNodeIndex].level;
+    const insertIndex = findInsertIndexAfterSubtree(selectedNodeIndex);
+
+    nodes.splice(insertIndex, 0, { text, level, isImage: false });
+    selectedNodeIndex = insertIndex;
+    updateBuilderButtons();
+    renderNodes();
+    saveToStorage();
+}
+
+function addChild(){
+    if(selectedNodeIndex < 0) return;
+    const text = promptForText("");
+    if(!text) return;
+
+    const level = nodes[selectedNodeIndex].level + 1;
+    const insertIndex = selectedNodeIndex + 1;
+
+    nodes.splice(insertIndex, 0, { text, level, isImage: false });
+    selectedNodeIndex = insertIndex;
+    updateBuilderButtons();
+    renderNodes();
+    saveToStorage();
+}
+
+function indentNode(){
+    if(selectedNodeIndex <= 0) return;
+    nodes[selectedNodeIndex].level += 1;
+    renderNodes();
+    updateBuilderButtons();
+    saveToStorage();
+}
+
+function outdentNode(){
+    if(selectedNodeIndex < 0) return;
+    if(nodes[selectedNodeIndex].level === 0) return;
+    nodes[selectedNodeIndex].level -= 1;
+    renderNodes();
+    updateBuilderButtons();
+    saveToStorage();
+}
+
+function moveNode(direction){
+    if(selectedNodeIndex < 0) return;
+
+    const from = selectedNodeIndex;
+    const to = from + direction;
+    if(to < 0 || to >= nodes.length) return;
+
+    // Simple swap. This does not move entire subtrees, but keeps the UI predictable.
+    const temp = nodes[from];
+    nodes[from] = nodes[to];
+    nodes[to] = temp;
+    selectedNodeIndex = to;
+    renderNodes();
+    updateBuilderButtons();
+    saveToStorage();
+}
+
+function deleteNode(){
+    if(selectedNodeIndex < 0) return;
+
+    const start = selectedNodeIndex;
+    const end = findInsertIndexAfterSubtree(start);
+
+    const removedCount = end - start;
+    const confirmDel = window.confirm(removedCount > 1
+        ? "Delete this node and its " + (removedCount-1) + " descendant(s)?"
+        : "Delete this node?");
+    if(!confirmDel) return;
+
+    nodes.splice(start, removedCount);
+    selectedNodeIndex = Math.min(start, nodes.length - 1);
+    if(nodes.length === 0) selectedNodeIndex = -1;
+    updateBuilderButtons();
+    renderNodes();
+    saveToStorage();
+}
+
+function extractImageSource(text){
+    const idx = text.indexOf("IMAGE:");
+    if(idx === -1) return "";
+    return text.slice(idx + 6).trim();
+}
+
+function handleBuilderImage(){
+    if(selectedNodeIndex < 0) return;
+    const input = document.getElementById('imageInputBuilder');
+    if(!(input.files && input.files[0])) return;
+
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e){
+        const dataUrl = e.target.result;
+        const insertIndex = selectedNodeIndex + 1;
+        const level = nodes[selectedNodeIndex].level + 1;
+
+        nodes.splice(insertIndex, 0, { text: "IMAGE: " + dataUrl, level, isImage: true });
+        selectedNodeIndex = insertIndex;
+        input.value = "";
+        updateBuilderButtons();
+        renderNodes();
+        saveToStorage();
+    };
+    reader.readAsDataURL(file);
+}
+
+function handleAttachImage(){
+    if(selectedNodeIndex < 0) return;
+    const input = document.getElementById('attachImageInput');
+    if(!(input.files && input.files[0])) return;
+
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e){
+        nodes[selectedNodeIndex].attachedImage = e.target.result;
+        input.value = "";
+        updateBuilderButtons();
+        renderNodes();
+        saveToStorage();
+    };
+    reader.readAsDataURL(file);
+}
+
+function removeAttachedImage(){
+    if(selectedNodeIndex < 0) return;
+    nodes[selectedNodeIndex].attachedImage = null;
+    updateBuilderButtons();
+    renderNodes();
+    saveToStorage();
+}
+
+/* -------------------------
+   DOCUMENT ATTACHMENT
+------------------------- */
+function handleAttachDoc(){
+    if(selectedNodeIndex < 0) return;
+    const input = document.getElementById('attachDocInput');
+    if(!(input.files && input.files.length)) return;
+
+    const node = nodes[selectedNodeIndex];
+    if(!node.attachedDocs) node.attachedDocs = [];
+
+    let filesProcessed = 0;
+    const totalFiles = input.files.length;
+
+    Array.from(input.files).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = function(e){
+            node.attachedDocs.push({
+                name: file.name,
+                type: file.type || "application/octet-stream",
+                size: file.size,
+                data: e.target.result
+            });
+            filesProcessed++;
+            if(filesProcessed === totalFiles){
+                input.value = "";
+                updateBuilderButtons();
+                renderNodes();
+                saveToStorage();
+            }
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function removeAttachedDoc(nodeIndex, docIndex){
+    if(nodeIndex < 0 || nodeIndex >= nodes.length) return;
+    const node = nodes[nodeIndex];
+    if(!node.attachedDocs || docIndex < 0 || docIndex >= node.attachedDocs.length) return;
+    node.attachedDocs.splice(docIndex, 1);
+    if(node.attachedDocs.length === 0) node.attachedDocs = null;
+    updateBuilderButtons();
+    renderNodes();
+    saveToStorage();
+    /* Refresh the popup if it is still open */
+    const existing = document.querySelector('.doc-list-popup');
+    if(existing){
+        existing.remove();
+        if(node.attachedDocs && node.attachedDocs.length > 0) showDocList();
+    }
+}
+
+function formatFileSize(bytes){
+    if(bytes < 1024) return bytes + " B";
+    if(bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+function showDocList(){
+    if(selectedNodeIndex < 0) return;
+    const node = nodes[selectedNodeIndex];
+    if(!node.attachedDocs || node.attachedDocs.length === 0) return;
+
+    /* Remove any existing popup */
+    const existing = document.querySelector('.doc-list-popup');
+    if(existing) existing.remove();
+
+    const popup = document.createElement('div');
+    popup.className = 'doc-list-popup';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'font-weight:700;padding:4px 8px 8px;border-bottom:1px solid #e2e8f0;margin-bottom:4px;';
+    header.textContent = 'Attached documents (' + node.attachedDocs.length + ')';
+    popup.appendChild(header);
+
+    node.attachedDocs.forEach((doc, idx) => {
+        const entry = document.createElement('div');
+        entry.className = 'doc-entry';
+
+        const name = document.createElement('span');
+        name.className = 'doc-name';
+        name.textContent = doc.name;
+        entry.appendChild(name);
+
+        const size = document.createElement('span');
+        size.className = 'doc-size';
+        size.textContent = doc.size ? formatFileSize(doc.size) : '';
+        entry.appendChild(size);
+
+        const remove = document.createElement('span');
+        remove.className = 'doc-remove';
+        remove.textContent = '✕';
+        remove.title = 'Remove this document';
+        remove.onclick = () => removeAttachedDoc(selectedNodeIndex, idx);
+        entry.appendChild(remove);
+
+        popup.appendChild(entry);
+    });
+
+    document.body.appendChild(popup);
+
+    /* Position near the button */
+    const btn = document.getElementById('viewDocsBtn');
+    const rect = btn.getBoundingClientRect();
+    popup.style.top = (rect.bottom + 6) + 'px';
+    popup.style.left = Math.min(rect.left, window.innerWidth - 340) + 'px';
+
+    /* Close on click outside */
+    setTimeout(() => {
+        function closeHandler(e){
+            if(!popup.contains(e.target) && e.target !== btn){
+                popup.remove();
+                document.removeEventListener('click', closeHandler);
+            }
+        }
+        document.addEventListener('click', closeHandler);
+    }, 0);
+}
+
+/* -------------------------
+   WEB LINK ATTACHMENT
+------------------------- */
+function addLink(){
+    if(selectedNodeIndex < 0) return;
+    const url = window.prompt("Enter URL:", "https://");
+    if(!url || !url.trim()) return;
+
+    const trimmedUrl = url.trim();
+    /* Basic URL validation */
+    if(!/^https?:\/\/.+/i.test(trimmedUrl)){
+        alert("Please enter a valid URL starting with http:// or https://");
+        return;
+    }
+
+    const label = window.prompt("Label (optional — leave blank to use the URL):", "");
+
+    const node = nodes[selectedNodeIndex];
+    if(!node.attachedLinks) node.attachedLinks = [];
+    node.attachedLinks.push({
+        url: trimmedUrl,
+        label: (label && label.trim()) ? label.trim() : ""
+    });
+    updateBuilderButtons();
+    renderNodes();
+    saveToStorage();
+}
+
+function removeAttachedLink(nodeIndex, linkIndex){
+    if(nodeIndex < 0 || nodeIndex >= nodes.length) return;
+    const node = nodes[nodeIndex];
+    if(!node.attachedLinks || linkIndex < 0 || linkIndex >= node.attachedLinks.length) return;
+    node.attachedLinks.splice(linkIndex, 1);
+    if(node.attachedLinks.length === 0) node.attachedLinks = null;
+    updateBuilderButtons();
+    renderNodes();
+    saveToStorage();
+    /* Refresh the popup if still open */
+    const existing = document.querySelector('.doc-list-popup');
+    if(existing){
+        existing.remove();
+        if(node.attachedLinks && node.attachedLinks.length > 0) showLinkList();
+    }
+}
+
+function showLinkList(){
+    if(selectedNodeIndex < 0) return;
+    const node = nodes[selectedNodeIndex];
+    if(!node.attachedLinks || node.attachedLinks.length === 0) return;
+
+    /* Remove any existing popup */
+    const existing = document.querySelector('.doc-list-popup');
+    if(existing) existing.remove();
+
+    const popup = document.createElement('div');
+    popup.className = 'doc-list-popup';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'font-weight:700;padding:4px 8px 8px;border-bottom:1px solid #e2e8f0;margin-bottom:4px;';
+    header.textContent = 'Attached links (' + node.attachedLinks.length + ')';
+    popup.appendChild(header);
+
+    node.attachedLinks.forEach((link, idx) => {
+        const entry = document.createElement('div');
+        entry.className = 'doc-entry';
+
+        const anchor = document.createElement('a');
+        anchor.href = link.url;
+        anchor.target = '_blank';
+        anchor.rel = 'noopener noreferrer';
+        anchor.className = 'doc-name';
+        anchor.textContent = link.label || link.url;
+        anchor.style.cssText = 'color:#4f46e5;text-decoration:none;';
+        anchor.title = link.url;
+        entry.appendChild(anchor);
+
+        const remove = document.createElement('span');
+        remove.className = 'doc-remove';
+        remove.textContent = '✕';
+        remove.title = 'Remove this link';
+        remove.onclick = () => removeAttachedLink(selectedNodeIndex, idx);
+        entry.appendChild(remove);
+
+        popup.appendChild(entry);
+    });
+
+    document.body.appendChild(popup);
+
+    const btn = document.getElementById('viewLinksBtn');
+    const rect = btn.getBoundingClientRect();
+    popup.style.top = (rect.bottom + 6) + 'px';
+    popup.style.left = Math.min(rect.left, window.innerWidth - 340) + 'px';
+
+    setTimeout(() => {
+        function closeHandler(e){
+            if(!popup.contains(e.target) && e.target !== btn){
+                popup.remove();
+                document.removeEventListener('click', closeHandler);
+            }
+        }
+        document.addEventListener('click', closeHandler);
+    }, 0);
+}
+
+/* -------------------------
+   KEYBOARD SHORTCUTS
+------------------------- */
+document.getElementById('nodeList').addEventListener('keydown', function(e){
+    if(editingNodeIndex >= 0) return; // Let the input handle its own keys
+    
+    switch(e.key){
+        case 'Enter':
+            e.preventDefault();
+            if(selectedNodeIndex >= 0) addSibling();
+            break;
+        case 'Tab':
+            e.preventDefault();
+            if(selectedNodeIndex >= 0) addChild();
+            break;
+        case 'Delete':
+        case 'Backspace':
+            e.preventDefault();
+            if(selectedNodeIndex >= 0) deleteNode();
+            break;
+        case 'ArrowLeft':
+            e.preventDefault();
+            if(selectedNodeIndex >= 0) outdentNode();
+            break;
+        case 'ArrowRight':
+            e.preventDefault();
+            if(selectedNodeIndex >= 0) indentNode();
+            break;
+        case 'ArrowUp':
+            e.preventDefault();
+            if(e.altKey && selectedNodeIndex >= 0){
+                moveNode(-1);
+            } else if(selectedNodeIndex > 0){
+                selectNode(selectedNodeIndex - 1);
+            }
+            break;
+        case 'ArrowDown':
+            e.preventDefault();
+            if(e.altKey && selectedNodeIndex >= 0){
+                moveNode(1);
+            } else if(selectedNodeIndex < nodes.length - 1){
+                selectNode(selectedNodeIndex + 1);
+            }
+            break;
+        case 'Escape':
+            e.preventDefault();
+            selectedNodeIndex = -1;
+            updateBuilderButtons();
+            renderNodes();
+            break;
+        case 'F2':
+            e.preventDefault();
+            if(selectedNodeIndex >= 0) startEditing(selectedNodeIndex);
+            break;
+    }
+});
+
+/* -------------------------
+   LOCAL STORAGE PERSISTENCE
+------------------------- */
+function saveToStorage(){
+    try {
+        const data = {
+            nodes: nodes,
+            title: document.getElementById('mapTitle').value
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        updateAutosaveIndicator(true);
+    } catch(e){
+        console.warn('Could not save to localStorage:', e);
+    }
+}
+
+function loadFromStorage(){
+    try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if(stored){
+            const data = JSON.parse(stored);
+            if(Array.isArray(data.nodes)){
+                nodes = data.nodes;
+                if(data.title){
+                    document.getElementById('mapTitle').value = data.title;
+                }
+                updateBuilderButtons();
+                renderNodes();
+                updateAutosaveIndicator(true);
+                return true;
+            }
+        }
+    } catch(e){
+        console.warn('Could not load from localStorage:', e);
+    }
+    return false;
+}
+
+function updateAutosaveIndicator(saved){
+    const indicator = document.getElementById('autosaveIndicator');
+    const icon = document.getElementById('autosaveIcon');
+    const text = document.getElementById('autosaveText');
+    if(saved && nodes.length > 0){
+        indicator.classList.add('saved');
+        icon.textContent = '●';
+        text.textContent = 'Saved locally';
+    } else {
+        indicator.classList.remove('saved');
+        icon.textContent = '○';
+        text.textContent = 'Not saved';
+    }
+}
+
+// Auto-save title changes
+document.getElementById('mapTitle').addEventListener('input', saveToStorage);
+
+/* -------------------------
+   EXPORT / IMPORT OPML
+------------------------- */
+function exportOPML(){
+    if(nodes.length === 0){
+        alert("Nothing to export. Add some nodes first.");
+        return;
+    }
+    const title = document.getElementById('mapTitle').value.trim() || "Mind Map";
+    const opmlStr = builderToOPML(title);
+    
+    const safeName = title.replace(/[\\/:*?"<>|]/g, "_").trim() || "Mind Map";
+    downloadFile(safeName + ".opml", opmlStr, "application/xml");
+}
+
+function importOPML(){
+    const input = document.getElementById('importOpmlInput');
+    if(!(input.files && input.files[0])) return;
+
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e){
+        const opmlStr = e.target.result;
+        const parsed = parseOPMLToNodes(opmlStr);
+        if(parsed && parsed.length > 0){
+            if(nodes.length > 0){
+                const confirm = window.confirm("This will replace your current nodes. Continue?");
+                if(!confirm){
+                    input.value = "";
+                    return;
+                }
+            }
+            nodes = parsed;
+            selectedNodeIndex = -1;
+            updateBuilderButtons();
+            renderNodes();
+            saveToStorage();
+        } else {
+            alert("Could not parse OPML file.");
+        }
+        input.value = "";
+    };
+    reader.readAsText(file);
+}
+
+function parseOPMLToNodes(opmlStr){
+    try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(opmlStr, "text/xml");
+        const body = doc.querySelector("body");
+        if(!body) return null;
+
+        const result = [];
+        function walk(el, level){
+            const outlines = el.querySelectorAll(':scope > outline');
+            outlines.forEach(outline => {
+                const text = outline.getAttribute('text') || outline.getAttribute('title') || '';
+                if(text){
+                    const isImage = text.toUpperCase().startsWith('IMAGE:');
+                    const attachedImage = outline.getAttribute('_image') || null;
+                    let attachedDocs = null;
+                    const docsRaw = outline.getAttribute('_docs');
+                    if(docsRaw){
+                        try { attachedDocs = JSON.parse(docsRaw); } catch(e) { /* ignore parse errors */ }
+                    }
+                    let attachedLinks = null;
+                    const linksRaw = outline.getAttribute('_links');
+                    if(linksRaw){
+                        try { attachedLinks = JSON.parse(linksRaw); } catch(e) { /* ignore parse errors */ }
+                    }
+                    result.push({ text, level, isImage, attachedImage, attachedDocs, attachedLinks });
+                    walk(outline, level + 1);
+                }
+            });
+        }
+        walk(body, 0);
+        return result;
+    } catch(e){
+        console.error('OPML parse error:', e);
+        return null;
+    }
+}
+
+function clearBuilder(){
+    if(nodes.length === 0) return;
+    const confirm = window.confirm("Clear all nodes? This cannot be undone.");
+    if(!confirm) return;
+    nodes = [];
+    selectedNodeIndex = -1;
+    updateBuilderButtons();
+    renderNodes();
+    saveToStorage();
+}
+
+/* -------------------------
+   BUILDER -> TEXT
+------------------------- */
+function builderToText(){
+    if(nodes.length === 0) return "";
+    let lines = [];
+    nodes.forEach(n => {
+        const indent = "    ".repeat(Math.max(0, n.level));
+        lines.push(indent + n.text);
+    });
+    return lines.join("\n");
+}
+
+/* -------------------------
+   BUILDER -> OPML (direct, preserving attached images)
+------------------------- */
+function builderToOPML(title){
+    if(nodes.length === 0) return "";
+
+    const escape = (str) =>
+        str.replace(/&/g, "&amp;")
+           .replace(/</g, "&lt;")
+           .replace(/>/g, "&gt;")
+           .replace(/"/g, "&quot;");
+
+    /* Build a tree from the flat node list */
+    const treeRoot = { children: [] };
+    const stack = [{ node: treeRoot, level: -1 }];
+
+    nodes.forEach(n => {
+        const newNode = { text: n.text, attachedImage: n.attachedImage || null, attachedDocs: n.attachedDocs || null, attachedLinks: n.attachedLinks || null, children: [] };
+        while(stack.length > 1 && stack[stack.length - 1].level >= n.level){
+            stack.pop();
+        }
+        stack[stack.length - 1].node.children.push(newNode);
+        stack.push({ node: newNode, level: n.level });
+    });
+
+    const TAB = "    ";
+
+    function toOPML(node, indent){
+        if(node.text === undefined){
+            return node.children.map(child => toOPML(child, indent)).join("\n");
+        }
+        let attrs = 'text="' + escape(node.text) + '"';
+        if(node.attachedImage){
+            attrs += ' _image="' + escape(node.attachedImage) + '"';
+        }
+        if(node.attachedDocs && node.attachedDocs.length > 0){
+            const docsData = JSON.stringify(node.attachedDocs.map(d => ({
+                name: d.name,
+                type: d.type,
+                size: d.size,
+                data: d.data
+            })));
+            attrs += ' _docs="' + escape(docsData) + '"';
+        }
+        if(node.attachedLinks && node.attachedLinks.length > 0){
+            const linksData = JSON.stringify(node.attachedLinks);
+            attrs += ' _links="' + escape(linksData) + '"';
+        }
+        if(!node.children.length){
+            return indent + '<outline ' + attrs + ' />';
+        }
+        const children = node.children.map(child => toOPML(child, indent + TAB)).join("\n");
+        return indent + '<outline ' + attrs + '>\n' + children + '\n' + indent + '</outline>';
+    }
+
+    const bodyContent = toOPML(treeRoot, TAB + TAB);
+    const safeTitle = escape(title || "Mind Map");
+
+    return '<?xml version="1.0" encoding="UTF-8"?>\n<opml version="2.0">\n    <head>\n        <title>' + safeTitle + '</title>\n    </head>\n    <body>\n' + bodyContent + '\n    </body>\n</opml>';
+}
+
+/* -------------------------
+   TEXT -> OPML
+   (supports dash levels or indentation)
+   Uses 4-space indentation for clearer parent-child spacing
+------------------------- */
+function convertTextToOPML(text, title){
+    const lines = text.split(/\r?\n/);
+    const escape = (str) =>
+        str.replace(/&/g, "&amp;")
+           .replace(/</g, "&lt;")
+           .replace(/>/g, "&gt;")
+           .replace(/"/g, "&quot;");
+
+    const parsed = [];
+    lines.forEach(rawLine => {
+        if(!rawLine.trim()) return;
+
+        let depthSpaces = 0;
+        let content = rawLine.trim();
+
+        const dashMatch = rawLine.match(/^(-+)\s+(.+)$/);
+        if(dashMatch){
+            depthSpaces = dashMatch[1].length * 4;
+            content = dashMatch[2].trim();
+        } else {
+            const leading = rawLine.match(/^\s*/)[0];
+            depthSpaces = leading.replace(/\t/g, "    ").length;
+        }
+
+        parsed.push({ depth: depthSpaces, content });
+    });
+
+    if(parsed.length === 0) return "";
+
+    const root = { children: [] };
+    const stack = [{ node: root, depth: -1 }];
+
+    parsed.forEach(p => {
+        const newNode = { text: p.content, children: [] };
+        while(stack.length > 1 && stack[stack.length - 1].depth >= p.depth){
+            stack.pop();
+        }
+        stack[stack.length - 1].node.children.push(newNode);
+        stack.push({ node: newNode, depth: p.depth });
+    });
+
+    // OPML indentation unit: 4 spaces for better readability
+    const OPML_INDENT = "    ";
+
+    function toOPML(node, indent=""){
+        if(node.text === undefined){
+            return node.children.map(child => toOPML(child, indent)).join("\n");
+        }
+        const textAttr = escape(node.text);
+        if(!node.children.length){
+            return `${indent}<outline text="${textAttr}" />`;
+        }
+        const children = node.children.map(child => toOPML(child, indent + OPML_INDENT)).join("\n");
+        return `${indent}<outline text="${textAttr}">\n${children}\n${indent}</outline>`;
+    }
+
+    const bodyContent = toOPML(root, OPML_INDENT + OPML_INDENT);
+    const safeTitle = escape(title || "Mind Map");
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+    <head>
+        <title>${safeTitle}</title>
+    </head>
+    <body>
+${bodyContent}
+    </body>
+</opml>`;
+}
+
+/* -------------------------
+   IMAGE INSERTION (OPML)
+------------------------- */
+function insertImageCodeAtCursor(textareaId, dataUrl){
+    const textarea = document.getElementById(textareaId);
+    if(!textarea) return;
+
+    const imageCode = "IMAGE: " + dataUrl;
+
+    const start = textarea.selectionStart ?? textarea.value.length;
+    const end = textarea.selectionEnd ?? textarea.value.length;
+
+    const before = textarea.value.slice(0, start);
+    const after = textarea.value.slice(end);
+
+    const needsNewlineBefore = before.length && !before.endsWith("\n");
+    const needsNewlineAfter = after.length && !after.startsWith("\n");
+
+    const insertion = (needsNewlineBefore ? "\n" : "") + imageCode + (needsNewlineAfter ? "\n" : "");
+
+    textarea.value = before + insertion + after;
+
+    const newPos = start + insertion.length;
+    textarea.setSelectionRange(newPos, newPos);
+    textarea.focus();
+}
+
+function showProcessingIndicator(id, message){
+    const el = document.getElementById(id);
+    if(!el) return;
+    if(message){
+        el.textContent = "✓ " + message;
+    }
+    el.classList.add("show");
+    setTimeout(() => el.classList.remove("show"), 2500);
+}
+
+function handleImageSelection(textareaId, processingId){
+    const inputId = "imageInputOpml";
+    const input = document.getElementById(inputId);
+    if(!(input && input.files && input.files[0])) return;
+
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e){
+        insertImageCodeAtCursor(textareaId, e.target.result);
+        input.value = "";
+        showProcessingIndicator(processingId, "Image processed and inserted.");
+    };
+    reader.readAsDataURL(file);
+}
+
+/* -------------------------
+   OPML FILE LOADING (button)
+------------------------- */
+function loadOPMLFile(){
+    const input = document.getElementById('opmlFileInput');
+    if(!(input.files && input.files[0])) return;
+
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e){
+        const textarea = document.getElementById('opmlData');
+        const currentContent = textarea.value.trim();
+        
+        if(currentContent){
+            const confirm = window.confirm("This will replace the current OPML content. Continue?");
+            if(!confirm){
+                input.value = "";
+                return;
+            }
+        }
+        
+        textarea.value = e.target.result;
+        input.value = "";
+        showProcessingIndicator('processingOpml', "OPML file loaded successfully.");
+    };
+    reader.readAsText(file);
+}
+
+/* -------------------------
+   DRAG-AND-DROP SUPPORT
+   Handles both images and OPML files
+------------------------- */
+function isOPMLFile(file){
+    if(!file) return false;
+    const name = file.name.toLowerCase();
+    const type = file.type.toLowerCase();
+    return name.endsWith('.opml') || 
+           name.endsWith('.xml') || 
+           type === 'application/xml' ||
+           type === 'text/xml' ||
+           type === 'application/x-opml';
+}
+
+function setupDropZone(textareaId, overlayId, processingId){
+    const textarea = document.getElementById(textareaId);
+    const overlay = document.getElementById(overlayId);
+    const dropText = document.getElementById('dropZoneText');
+    if(!textarea || !overlay) return;
+
+    const activateForImage = () => {
+        overlay.classList.remove("active-opml");
+        overlay.classList.add("active");
+        if(dropText) dropText.textContent = "📁 Drop image to insert";
+    };
+    
+    const activateForOPML = () => {
+        overlay.classList.remove("active");
+        overlay.classList.add("active-opml");
+        if(dropText) dropText.textContent = "📄 Drop OPML file to load";
+    };
+    
+    const deactivate = () => {
+        overlay.classList.remove("active");
+        overlay.classList.remove("active-opml");
+        if(dropText) dropText.textContent = "📁 Drop image or OPML file here";
+    };
+
+    ["dragenter","dragover"].forEach(evt => {
+        textarea.addEventListener(evt, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Check what type of file is being dragged
+            const items = e.dataTransfer.items;
+            if(items && items.length > 0){
+                const item = items[0];
+                if(item.kind === 'file'){
+                    // Try to determine file type from the drag event
+                    const type = item.type.toLowerCase();
+                    if(type.startsWith('image/')){
+                        activateForImage();
+                    } else if(type === 'application/xml' || type === 'text/xml' || type === ''){
+                        // XML types or unknown (OPML files often have no type during drag)
+                        activateForOPML();
+                    } else {
+                        activateForImage(); // Default to image styling
+                    }
+                }
+            } else {
+                activateForImage();
+            }
+        });
+    });
+    
+    ["dragleave"].forEach(evt => {
+        textarea.addEventListener(evt, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            deactivate();
+        });
+    });
+
+    textarea.addEventListener("drop", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        deactivate();
+        
+        const file = e.dataTransfer.files && e.dataTransfer.files[0];
+        if(!file) return;
+
+        // Check if it is an OPML file
+        if(isOPMLFile(file)){
+            const reader = new FileReader();
+            reader.onload = function(ev){
+                const currentContent = textarea.value.trim();
+                
+                if(currentContent){
+                    const confirm = window.confirm("This will replace the current OPML content. Continue?");
+                    if(!confirm) return;
+                }
+                
+                textarea.value = ev.target.result;
+                showProcessingIndicator(processingId, "OPML file loaded successfully.");
+            };
+            reader.readAsText(file);
+            return;
+        }
+        
+        // Check if it is an image file
+        if(file.type.startsWith("image/")){
+            const reader = new FileReader();
+            reader.onload = function(ev){
+                insertImageCodeAtCursor(textareaId, ev.target.result);
+                showProcessingIndicator(processingId, "Image processed and inserted.");
+            };
+            reader.readAsDataURL(file);
+            return;
+        }
+        
+        // Unknown file type
+        alert("Unsupported file type. Please drop an image file or an OPML/XML file.");
+    });
+}
+
+/* -------------------------
+   NOTEBOOKLM IMPORT
+------------------------- */
+
+/* Generate the bookmarklet code */
+(function generateBookmarklet(){
+    const code = `(function(){
+var svg=document.querySelector('div.mindmap svg');
+if(!svg){alert('No NotebookLM mind map found on this page. Make sure a mind map is visible.');return;}
+var rootG=svg.querySelector('g.node');
+if(!rootG||!rootG.__data__){alert('Could not access mind map data. The page may have changed its structure.');return;}
+function ext(n){var r={name:n.data&&n.data.name||'unknown'};var k=n.children||n._children||[];if(k.length>0){r.children=k.map(function(c){return ext(c);})}return r;}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function toO(n,ind){var t=esc(n.name);if(!n.children||!n.children.length){return ind+'<outline text=\"'+t+'\" />';}var kids=n.children.map(function(c){return toO(c,ind+'    ');}).join('\\n');return ind+'<outline text=\"'+t+'\">\\n'+kids+'\\n'+ind+'</outline>';}
+var tree=ext(rootG.__data__);
+var cnt=0;function countNodes(n){cnt++;if(n.children)n.children.forEach(countNodes);}countNodes(tree);
+var opml='<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n<opml version=\"2.0\">\\n    <head>\\n        <title>'+esc(tree.name)+'</title>\\n    </head>\\n    <body>\\n'+toO(tree,'        ')+'\\n    </body>\\n</opml>';
+navigator.clipboard.writeText(opml).then(function(){alert('Mind map OPML copied to clipboard! ('+cnt+' nodes)\\n\\nPaste it into the Mind Map Generator.');}).catch(function(){var ta=document.createElement('textarea');ta.value=opml;ta.style.cssText='position:fixed;top:10px;left:10px;width:90vw;height:80vh;z-index:99999;font-size:12px;';document.body.appendChild(ta);ta.focus();ta.select();alert('Could not copy automatically. The OPML is shown in a text area — please copy it manually (Ctrl+A then Ctrl+C).');});
+})();`;
+    const link = document.getElementById('bookmarkletLink');
+    if(link){
+        link.href = 'javascript:' + encodeURIComponent(code);
+    }
+})();
+
+/* Preview pasted OPML in the import textarea */
+document.getElementById('notebooklmData').addEventListener('input', function(){
+    const opmlStr = this.value.trim();
+    const preview = document.getElementById('importPreview');
+    const titleEl = document.getElementById('importPreviewTitle');
+    const treeEl = document.getElementById('importPreviewTree');
+
+    if(!opmlStr){
+        preview.classList.remove('show');
+        return;
+    }
+
+    try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(opmlStr, "text/xml");
+        const parseError = doc.querySelector("parsererror");
+        if(parseError){
+            preview.classList.add('show');
+            titleEl.textContent = '⚠ XML parse error';
+            titleEl.style.color = '#dc2626';
+            treeEl.textContent = 'The pasted content is not valid XML/OPML.';
+            return;
+        }
+
+        const body = doc.querySelector("body");
+        if(!body){
+            preview.classList.add('show');
+            titleEl.textContent = '⚠ Not valid OPML';
+            titleEl.style.color = '#dc2626';
+            treeEl.textContent = 'No <body> element found in the OPML.';
+            return;
+        }
+
+        let nodeCount = 0;
+        function walk(el, depth){
+            let text = '';
+            const outlines = el.querySelectorAll(':scope > outline');
+            outlines.forEach(o => {
+                nodeCount++;
+                const name = o.getAttribute('text') || o.getAttribute('title') || '(unnamed)';
+                text += '  '.repeat(depth) + name.substring(0, 60) + '\n';
+                text += walk(o, depth + 1);
+            });
+            return text;
+        }
+
+        const treeText = walk(body, 0);
+        const mapTitle = doc.querySelector("head > title")?.textContent || '';
+
+        titleEl.style.color = '#166534';
+        titleEl.textContent = '✓ Valid OPML — ' + nodeCount + ' nodes' + (mapTitle ? ' — "' + mapTitle + '"' : '');
+        treeEl.textContent = treeText.trimEnd();
+        preview.classList.add('show');
+
+        // Auto-fill the map title if empty
+        const titleInput = document.getElementById('mapTitle');
+        if(mapTitle && !titleInput.value.trim()){
+            titleInput.value = mapTitle;
+            saveToStorage();
+        }
+    } catch(e){
+        preview.classList.add('show');
+        titleEl.textContent = '⚠ Parse error';
+        titleEl.style.color = '#dc2626';
+        treeEl.textContent = e.message;
+    }
+});
+
+/* Load from NotebookLM paste area into Builder mode */
+function loadToBuilder(){
+    const opmlStr = document.getElementById('notebooklmData').value.trim();
+    if(!opmlStr){
+        alert("Please paste the extracted OPML first.");
+        return;
+    }
+
+    const parsed = parseOPMLToNodes(opmlStr);
+    if(!parsed || parsed.length === 0){
+        alert("Could not parse OPML. Please check the pasted content.");
+        return;
+    }
+
+    if(nodes.length > 0){
+        const confirmReplace = window.confirm("This will replace your current builder nodes. Continue?");
+        if(!confirmReplace) return;
+    }
+
+    nodes = parsed;
+    selectedNodeIndex = -1;
+    setMode('builder');
+    updateBuilderButtons();
+    renderNodes();
+    saveToStorage();
+}
+
+/* Load from NotebookLM paste area into OPML mode */
+function loadToOpml(){
+    const opmlStr = document.getElementById('notebooklmData').value.trim();
+    if(!opmlStr){
+        alert("Please paste the extracted OPML first.");
+        return;
+    }
+
+    const textarea = document.getElementById('opmlData');
+    if(textarea.value.trim()){
+        const confirmReplace = window.confirm("This will replace the current OPML content. Continue?");
+        if(!confirmReplace) return;
+    }
+
+    textarea.value = opmlStr;
+    setMode('opml');
+    showProcessingIndicator('processingOpml', "OPML loaded from NotebookLM import.");
+}
+
+/* -------------------------
+   GENERATE OUTPUT HTML
+------------------------- */
+function generateInteractiveMapHTML(opmlStr, title, defaultLayout){
+    const safeTitle = (title || "Mind Map").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    const layout = defaultLayout || "ltr";
+    const cleanOPML = opmlStr
+        .replace(/\\/g, "\\\\")
+        .replace(/`/g, "\\`")
+        .replace(/\$\{/g, "\\${");
+
+    return `<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${safeTitle}</title>
+<script src="https://d3js.org/d3.v7.min.js"><\/script>
+<style>
+    body{ margin:0; overflow:hidden; font-family: "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background:#ffffff; height:100vh; }
+    #viz{ width:100%; height:100%; cursor: grab; }
+    #viz:active{ cursor: grabbing; }
+
+    .link{ fill:none; stroke:#cbd5e1; stroke-width:1.5px; }
+
+    .node rect{
+        stroke: none;
+        rx: 8px;
+        ry: 8px;
+        filter: drop-shadow(0 1px 2px rgba(0,0,0,0.05));
+        transition: filter 0.2s ease, opacity 0.2s ease;
+    }
+    .node text.label{
+        font-size: 13px;
+        fill: #1e293b;
+        font-weight: 600;
+        pointer-events: none;
+        text-anchor: middle;
+        dominant-baseline: central;
+    }
+    .node image{
+        pointer-events: none;
+    }
+    .node image.attached-img{
+        pointer-events: none;
+        border-radius: 4px;
+    }
+
+    .node-button{ cursor: pointer; }
+    .node-button circle{
+        fill:#fff;
+        stroke:#cbd5e1;
+        stroke-width:1.5px;
+        transition: all 0.2s ease;
+    }
+    .node-button:hover circle{
+        stroke:#8b5cf6;
+        stroke-width:2px;
+    }
+    .node-button text{
+        font-size: 10px;
+        fill:#64748b;
+        font-weight: bold;
+        pointer-events: none;
+    }
+
+    .legend{
+        position:absolute;
+        top: 18px;
+        left: 18px;
+        background: rgba(255,255,255,0.96);
+        padding: 12px 14px;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+        font-size: 0.9rem;
+        color: #334155;
+        pointer-events: none;
+    }
+    .controls{
+        position:absolute;
+        top: 14px;
+        right: 14px;
+        display:flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        max-width: 420px;
+        background: rgba(255,255,255,0.96);
+        padding: 8px;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+    }
+    .controls button{
+        background:#4f46e5;
+        color:white;
+        border:none;
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 12.5px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .controls button:hover{
+        background:#4338ca;
+    }
+    .controls .sep{
+        width: 1px;
+        background: #e2e8f0;
+        margin: 2px 2px;
+    }
+    .controls .layout-btn{
+        background: #e2e8f0;
+        color: #475569;
+    }
+    .controls .layout-btn:hover{
+        background: #cbd5e1;
+    }
+    .controls .layout-btn.active{
+        background: #7c3aed;
+        color: white;
+    }
+    .controls .layout-btn.active:hover{
+        background: #6d28d9;
+    }
+    .doc-tooltip{
+        position: fixed;
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        padding: 6px;
+        z-index: 9999;
+        max-width: 280px;
+        font-size: 12px;
+        color: #334155;
+    }
+    .doc-tooltip .dt-item{
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    .doc-tooltip .dt-item:hover{
+        background: #f1f5f9;
+    }
+    .doc-tooltip .dt-icon{
+        width: 16px; height: 16px; flex-shrink: 0; fill: #4f46e5;
+    }
+    .doc-tooltip .dt-name{
+        flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500;
+    }
+    .doc-tooltip .dt-size{
+        font-size: 10px; color: #94a3b8; flex-shrink: 0;
+    }
+</style>
+</head>
+<body>
+<div class="legend" id="legend">${safeTitle}</div>
+<div class="controls">
+    <button onclick="expandAll()">Expand all</button>
+    <button onclick="collapseAll()">Collapse all</button>
+    <button onclick="resetView()">Reset view</button>
+    <div class="sep"></div>
+    <button class="layout-btn${layout==='ltr'?' active':''}" data-layout="ltr" onclick="switchLayout('ltr')">Left–Right</button>
+    <button class="layout-btn${layout==='radial'?' active':''}" data-layout="radial" onclick="switchLayout('radial')">Radial</button>
+    <button class="layout-btn${layout==='ttb'?' active':''}" data-layout="ttb" onclick="switchLayout('ttb')">Top–Down</button>
+</div>
+<svg id="viz"></svg>
+
+<script>
+const opmlData = \`${cleanOPML}\`;
+
+let currentLayout = "${layout}";
+
+const DURATION = 350;
+const MIN_GAP = 60;
+const VERT_SPACE = 52;
+const IMG_WIDTH = 100;
+const IMG_HEIGHT = 70;
+const BTN_RADIUS = 9;
+const BTN_GAP = 6;
+
+const width = window.innerWidth;
+const height = window.innerHeight;
+const margin = { top: 40, right: 120, bottom: 40, left: 140 };
+
+const svg = d3.select("#viz")
+    .attr("width", width)
+    .attr("height", height);
+
+const g = svg.append("g");
+
+const zoom = d3.zoom()
+    .scaleExtent([0.1, 4])
+    .on("zoom", (event) => g.attr("transform", event.transform));
+
+svg.call(zoom);
+
+let root;
+
+/* ---- OPML parsing ---- */
+function parseOPML(str){
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(str, "text/xml");
+    const body = doc.querySelector("body");
+    if(!body) return null;
+
+    function walk(el){
+        const outlines = el.querySelectorAll(":scope > outline");
+        if(!outlines.length) return null;
+        const children = [];
+        outlines.forEach(o => {
+            const txt = o.getAttribute("text") || o.getAttribute("title") || "";
+            const node = { name: txt };
+            const img = o.getAttribute("_image");
+            if(img) node.attachedImage = img;
+            const docsRaw = o.getAttribute("_docs");
+            if(docsRaw){ try { node.attachedDocs = JSON.parse(docsRaw); } catch(e){} }
+            const linksRaw = o.getAttribute("_links");
+            if(linksRaw){ try { node.attachedLinks = JSON.parse(linksRaw); } catch(e){} }
+            const sub = walk(o);
+            if(sub) node.children = sub;
+            children.push(node);
+        });
+        return children;
+    }
+
+    const firstOutline = body.querySelector(":scope > outline");
+    if(!firstOutline) return null;
+    const rootName = firstOutline.getAttribute("text") || firstOutline.getAttribute("title") || "Root";
+    const rootNode = { name: rootName };
+    const rootImg = firstOutline.getAttribute("_image");
+    if(rootImg) rootNode.attachedImage = rootImg;
+    const rootDocsRaw = firstOutline.getAttribute("_docs");
+    if(rootDocsRaw){ try { rootNode.attachedDocs = JSON.parse(rootDocsRaw); } catch(e){} }
+    const rootLinksRaw = firstOutline.getAttribute("_links");
+    if(rootLinksRaw){ try { rootNode.attachedLinks = JSON.parse(rootLinksRaw); } catch(e){} }
+    const sub = walk(firstOutline);
+    if(sub) rootNode.children = sub;
+    return rootNode;
+}
+
+function isImageNodeName(name){ return name && name.toUpperCase().startsWith("IMAGE:"); }
+function getImageSrc(name){ return name.slice(6).trim(); }
+function hasAttachedImage(d){ return !!(d.data && d.data.attachedImage); }
+function hasAttachedDocs(d){ return !!(d.data && d.data.attachedDocs && d.data.attachedDocs.length); }
+function hasAttachedLinks(d){ return !!(d.data && d.data.attachedLinks && d.data.attachedLinks.length); }
+
+/* Document download / tooltip */
+function downloadDoc(doc){
+    const a = document.createElement("a");
+    a.href = doc.data;
+    a.download = doc.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+}
+
+function formatFileSize(bytes){
+    if(!bytes) return "";
+    if(bytes < 1024) return bytes + " B";
+    if(bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+let activeDocTooltip = null;
+function showDocTooltip(d, event){
+    hideDocTooltip();
+    if(!hasAttachedDocs(d)) return;
+    const docs = d.data.attachedDocs;
+
+    const tip = document.createElement("div");
+    tip.className = "doc-tooltip";
+
+    docs.forEach(doc => {
+        const item = document.createElement("div");
+        item.className = "dt-item";
+        item.onclick = () => { downloadDoc(doc); hideDocTooltip(); };
+
+        const icon = document.createElementNS("http://www.w3.org/2000/svg","svg");
+        icon.setAttribute("viewBox","0 0 16 16");
+        icon.setAttribute("class","dt-icon");
+        const path = document.createElementNS("http://www.w3.org/2000/svg","path");
+        path.setAttribute("d","M4 1h5.5L14 5.5V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zm5 1v4h4");
+        icon.appendChild(path);
+        item.appendChild(icon);
+
+        const name = document.createElement("span");
+        name.className = "dt-name";
+        name.textContent = doc.name;
+        item.appendChild(name);
+
+        const size = document.createElement("span");
+        size.className = "dt-size";
+        size.textContent = formatFileSize(doc.size);
+        item.appendChild(size);
+
+        tip.appendChild(item);
+    });
+
+    document.body.appendChild(tip);
+
+    const px = event.clientX;
+    const py = event.clientY;
+    tip.style.left = Math.min(px + 8, window.innerWidth - 290) + "px";
+    tip.style.top = Math.min(py + 8, window.innerHeight - tip.offsetHeight - 10) + "px";
+
+    activeDocTooltip = tip;
+    setTimeout(() => {
+        function closer(e){ if(!tip.contains(e.target)){ hideDocTooltip(); document.removeEventListener("mousedown", closer); } }
+        document.addEventListener("mousedown", closer);
+    }, 0);
+}
+
+function hideDocTooltip(){
+    if(activeDocTooltip){ activeDocTooltip.remove(); activeDocTooltip = null; }
+}
+
+let activeLinkTooltip = null;
+function showLinkTooltip(d, event){
+    hideLinkTooltip();
+    hideDocTooltip();
+    if(!hasAttachedLinks(d)) return;
+    const links = d.data.attachedLinks;
+
+    const tip = document.createElement("div");
+    tip.className = "doc-tooltip";
+
+    links.forEach(link => {
+        const item = document.createElement("div");
+        item.className = "dt-item";
+        item.onclick = () => { window.open(link.url, "_blank", "noopener,noreferrer"); hideLinkTooltip(); };
+
+        const icon = document.createElementNS("http://www.w3.org/2000/svg","svg");
+        icon.setAttribute("viewBox","0 0 16 16");
+        icon.setAttribute("class","dt-icon");
+        icon.style.fill = "#059669";
+        const path = document.createElementNS("http://www.w3.org/2000/svg","path");
+        path.setAttribute("d","M6.354 5.354l-2 2a2.5 2.5 0 0 0 3.536 3.536l2-2m1.756-1.756l2-2a2.5 2.5 0 0 0-3.536-3.536l-2 2");
+        path.setAttribute("stroke","#059669");
+        path.setAttribute("stroke-width","1.5");
+        path.setAttribute("fill","none");
+        icon.appendChild(path);
+        item.appendChild(icon);
+
+        const name = document.createElement("span");
+        name.className = "dt-name";
+        name.textContent = link.label || link.url;
+        name.style.color = "#059669";
+        item.appendChild(name);
+
+        tip.appendChild(item);
+    });
+
+    document.body.appendChild(tip);
+
+    const px = event.clientX;
+    const py = event.clientY;
+    tip.style.left = Math.min(px + 8, window.innerWidth - 290) + "px";
+    tip.style.top = Math.min(py + 8, window.innerHeight - tip.offsetHeight - 10) + "px";
+
+    activeLinkTooltip = tip;
+    setTimeout(() => {
+        function closer(e){ if(!tip.contains(e.target)){ hideLinkTooltip(); document.removeEventListener("mousedown", closer); } }
+        document.addEventListener("mousedown", closer);
+    }, 0);
+}
+
+function hideLinkTooltip(){
+    if(activeLinkTooltip){ activeLinkTooltip.remove(); activeLinkTooltip = null; }
+}
+
+const colorScale = ["#c3caff","#bad3ee","#a2dcd0","#9decbb"];
+function nodeFillByDepth(d){ return colorScale[d.depth % colorScale.length]; }
+
+function nodeDims(d){
+    const isImg = isImageNodeName(d.data.name);
+    if(isImg) return { w: IMG_WIDTH + 24, h: IMG_HEIGHT + 12 };
+    const label = d.data.name || "";
+    const hasDocs = hasAttachedDocs(d);
+    const hasLinks = hasAttachedLinks(d);
+    const iconExtra = (hasDocs ? 22 : 0) + (hasLinks ? 22 : 0);
+    const textW = Math.max(70, label.length * 7.8 + 28 + iconExtra);
+    if(hasAttachedImage(d)){
+        const w = Math.max(textW, IMG_WIDTH + 24);
+        const h = IMG_HEIGHT + 12 + 26; /* image + padding + text line */
+        return { w, h };
+    }
+    return { w: textW, h: 30 };
+}
+
+function nodeFootprint(d){
+    const dim = nodeDims(d);
+    const hasBtn = d.children || d._children;
+    return dim.w + (hasBtn ? BTN_GAP + BTN_RADIUS * 2 : 0);
+}
+
+function nodeFootprintV(d){
+    const dim = nodeDims(d);
+    const hasBtn = d.children || d._children;
+    return dim.h + (hasBtn ? BTN_GAP + BTN_RADIUS * 2 : 0);
+}
+
+/* ---- Radial projection ---- */
+function projectRadial(angle, radius){
+    const a = angle - Math.PI / 2;
+    return [radius * Math.cos(a), radius * Math.sin(a)];
+}
+
+/* ---- Node screen position per layout ---- */
+function nodePos(d){
+    if(currentLayout === "radial"){
+        const p = projectRadial(d.x, d.y);
+        return { tx: p[0], ty: p[1] };
+    }
+    if(currentLayout === "ttb") return { tx: d.x, ty: d.y };
+    return { tx: d.y, ty: d.x }; /* LTR */
+}
+
+/* ---- Node transform: translate only, no rotation ---- */
+function nodeTransform(d){
+    const p = nodePos(d);
+    return "translate(" + p.tx + "," + p.ty + ")";
+}
+
+/* ---- Rect anchor per layout ---- */
+function rectX(d){
+    if(currentLayout === "ltr") return 0;
+    return -d.__w / 2; /* centred for radial and TTB */
+}
+function rectY(d){ return -d.__h / 2; }
+
+/* ---- Text anchor X ---- */
+function textX(d){
+    if(currentLayout === "ltr") return d.__w / 2;
+    return 0; /* centred for radial and TTB */
+}
+
+/* ---- Expand button position ---- */
+function btnCx(d){
+    if(currentLayout === "ttb") return 0;
+    if(currentLayout === "radial") return d.__w / 2 + BTN_GAP + BTN_RADIUS;
+    return d.__w + BTN_GAP + BTN_RADIUS; /* LTR */
+}
+function btnCy(d){
+    if(currentLayout === "ttb") return d.__h / 2 + BTN_GAP + BTN_RADIUS;
+    return 0;
+}
+
+/* ---- Link path ---- */
+function diagonal(d){
+    if(currentLayout === "radial"){
+        return d3.linkRadial().angle(n => n.x).radius(n => n.y)(d);
+    }
+    if(currentLayout === "ttb"){
+        const sy = d.source.y + (d.source.__h || 0) / 2;
+        const ty = d.target.y - (d.target.__h || 0) / 2;
+        const midY = (sy + ty) / 2;
+        return "M" + d.source.x + "," + sy
+             + "C" + d.source.x + "," + midY
+             + " " + d.target.x + "," + midY
+             + " " + d.target.x + "," + ty;
+    }
+    /* LTR */
+    const sx = d.source.y + (d.source.__w || 0);
+    const tx = d.target.y;
+    const midX = (sx + tx) / 2;
+    return "M" + sx + "," + d.source.x
+         + "C" + midX + "," + d.source.x
+         + " " + midX + "," + d.target.x
+         + " " + tx + "," + d.target.x;
+}
+
+/* ---- Collapsed-origin link for enter/exit animation ---- */
+function diagonalOrigin(source){
+    if(currentLayout === "radial"){
+        return d3.linkRadial().angle(n => n.x).radius(n => n.y)({source: source, target: source});
+    }
+    const o = Object.assign({}, source, {__w: 0, __h: 0});
+    return diagonal({source: o, target: o});
+}
+
+/* ---- Button symbol ---- */
+function btnSymbol(d){ return d.children ? "\\u2212" : "+"; }
+
+/* ---- Init ---- */
+function init(){
+    const data = parseOPML(opmlData);
+    if(!data){ alert("Unable to parse OPML."); return; }
+    root = d3.hierarchy(data);
+    root.x0 = 0; root.y0 = 0;
+    if(root.children && root.children.length) root.children.forEach(collapse);
+    update(root);
+    resetView();
+}
+
+function collapse(d){
+    if(d.children){ d._children = d.children; d._children.forEach(collapse); d.children = null; }
+}
+function expand(d){
+    if(d._children){ d.children = d._children; d._children = null; }
+    if(d.children) d.children.forEach(expand);
+}
+function expandAll(){ expand(root); update(root); }
+function collapseAll(){ if(root.children) root.children.forEach(collapse); update(root); }
+function toggle(d){
+    if(d.children){ d._children = d.children; d.children = null; }
+    else if(d._children){ d.children = d._children; d._children = null; }
+}
+
+function resetView(){
+    let t;
+    if(currentLayout === "radial"){
+        /* Auto-scale to fit the radial tree */
+        const maxR = d3.max(root.descendants(), d => d.y) || 300;
+        const totalDiam = maxR * 2 + 200;
+        const fitScale = Math.min(width, height) / totalDiam;
+        const scale = Math.max(0.15, Math.min(fitScale, 1));
+        t = d3.zoomIdentity.translate(width / 2, height / 2).scale(scale);
+    } else if(currentLayout === "ttb"){
+        t = d3.zoomIdentity.translate(width / 2, margin.top).scale(1);
+    } else {
+        t = d3.zoomIdentity.translate(margin.left, height / 2).scale(1);
+    }
+    svg.transition().duration(300).call(zoom.transform, t);
+}
+
+function switchLayout(layout){
+    currentLayout = layout;
+    document.querySelectorAll(".layout-btn").forEach(b => b.classList.remove("active"));
+    const btn = document.querySelector('[data-layout="' + layout + '"]');
+    if(btn) btn.classList.add("active");
+    /* Clear and rebuild so enter/exit animations work cleanly */
+    g.selectAll("g.node").remove();
+    g.selectAll("path.link").remove();
+    window.__nodeIdCounter = 0;
+    root.descendants().forEach(d => { d.id = null; });
+    update(root);
+    setTimeout(resetView, 50);
+}
+
+/* ---- Main update ---- */
+function update(source){
+    /* Compute layout */
+    let treeLayout;
+    if(currentLayout === "radial"){
+        /* First pass: compute tree structure to count nodes per depth */
+        const tempLayout = d3.tree()
+            .size([2 * Math.PI, 100])
+            .separation((a, b) => (a.parent === b.parent ? 1 : 1.5));
+        tempLayout(root);
+
+        /* Count visible nodes and compute max diagonal extent at each depth.
+           Horizontal (unrotated) nodes at varying angles can overlap based on
+           their diagonal extent, not just width alone. */
+        const visNodes = root.descendants();
+        const countAtDepth = {};
+        const maxDiagAtDepth = {};
+        const maxWAtDepth = {};
+        visNodes.forEach(d => {
+            countAtDepth[d.depth] = (countAtDepth[d.depth] || 0) + 1;
+            const dim = nodeDims(d);
+            const diag = Math.sqrt(dim.w * dim.w + dim.h * dim.h);
+            if(!maxDiagAtDepth[d.depth] || diag > maxDiagAtDepth[d.depth]) maxDiagAtDepth[d.depth] = diag;
+            if(!maxWAtDepth[d.depth] || dim.w > maxWAtDepth[d.depth]) maxWAtDepth[d.depth] = dim.w;
+        });
+
+        /* Compute radius for each depth ring so nodes do not overlap */
+        const maxDepthR = d3.max(visNodes, d => d.depth) || 1;
+        const depthRadius = { 0: 0 };
+        const PAD = 30;
+        for(let dep = 1; dep <= maxDepthR; dep++){
+            const nc = countAtDepth[dep] || 1;
+            const nd = maxDiagAtDepth[dep] || 70;
+            const minCirc = nc * (nd + PAD);
+            const minR = minCirc / (2 * Math.PI);
+            const prevR = depthRadius[dep - 1];
+            const prevW = maxWAtDepth[dep - 1] || 70;
+            const nw = maxWAtDepth[dep] || 70;
+            const minFromPrev = prevR + prevW / 2 + MIN_GAP + nw / 2;
+            depthRadius[dep] = Math.max(minR, minFromPrev, 140 * dep);
+        }
+
+        const maxRadius = depthRadius[maxDepthR] || 300;
+        treeLayout = d3.tree()
+            .size([2 * Math.PI, maxRadius])
+            .separation((a, b) => (a.parent === b.parent ? 1 : 1.5));
+
+        /* Override y (radius) per depth after layout */
+        treeLayout(root);
+        root.descendants().forEach(d => { d.y = depthRadius[d.depth] || 0; });
+    } else if(currentLayout === "ttb"){
+        /* Pre-compute max node footprint width for dynamic horizontal spacing */
+        const allNodes = root.descendants();
+        let maxFP = 100;
+        allNodes.forEach(d => {
+            const fp = nodeFootprint(d);
+            if(fp > maxFP) maxFP = fp;
+        });
+        treeLayout = d3.tree().nodeSize([maxFP + 24, 60]);
+    } else {
+        treeLayout = d3.tree().nodeSize([VERT_SPACE, 200]);
+    }
+
+    const treeData = treeLayout(root);
+    const nodes = treeData.descendants();
+    const links = treeData.links();
+
+    /* Dynamic depth spacing for LTR and TTB */
+    if(currentLayout === "ltr"){
+        const maxW = {};
+        nodes.forEach(d => { const fp = nodeFootprint(d); if(!maxW[d.depth] || fp > maxW[d.depth]) maxW[d.depth] = fp; });
+        const depthY = { 0: 0 };
+        const maxDepth = d3.max(nodes, d => d.depth) || 0;
+        for(let dep = 1; dep <= maxDepth; dep++){
+            depthY[dep] = depthY[dep - 1] + (maxW[dep - 1] || 100) + MIN_GAP;
+        }
+        nodes.forEach(d => { d.y = depthY[d.depth]; });
+    } else if(currentLayout === "ttb"){
+        const maxH = {};
+        nodes.forEach(d => { const fp = nodeFootprintV(d); if(!maxH[d.depth] || fp > maxH[d.depth]) maxH[d.depth] = fp; });
+        const depthY = { 0: 0 };
+        const maxDepth = d3.max(nodes, d => d.depth) || 0;
+        for(let dep = 1; dep <= maxDepth; dep++){
+            depthY[dep] = depthY[dep - 1] + (maxH[dep - 1] || 30) + MIN_GAP;
+        }
+        nodes.forEach(d => { d.y = depthY[d.depth]; });
+    }
+
+    /* Store computed dims on each node */
+    nodes.forEach(d => { const dim = nodeDims(d); d.__w = dim.w; d.__h = dim.h; });
+
+    /* ---- NODES ---- */
+    const node = g.selectAll("g.node")
+        .data(nodes, d => d.id || (d.id = ++window.__nodeIdCounter));
+
+    const nodeEnter = node.enter().append("g")
+        .attr("class", "node")
+        .attr("transform", () => {
+            const p = nodePos(source);
+            return "translate(" + p.tx + "," + p.ty + ")";
+        });
+
+    nodeEnter.append("rect")
+        .attr("x", 0).attr("y", 0).attr("width", 10).attr("height", 10)
+        .style("fill", d => nodeFillByDepth(d));
+
+    /* Standalone IMAGE: node image */
+    nodeEnter.append("image")
+        .attr("class", "img")
+        .attr("href", d => { const n = d.data.name || ""; return isImageNodeName(n) ? getImageSrc(n) : ""; })
+        .attr("x", 0).attr("y", -IMG_HEIGHT/2)
+        .attr("width", IMG_WIDTH).attr("height", IMG_HEIGHT)
+        .style("display", d => isImageNodeName(d.data.name) ? "block" : "none");
+
+    /* Attached image (displayed above text label within the node) */
+    nodeEnter.append("image")
+        .attr("class", "attached-img")
+        .attr("href", d => hasAttachedImage(d) ? d.data.attachedImage : "")
+        .attr("x", 0).attr("y", 0)
+        .attr("width", IMG_WIDTH).attr("height", IMG_HEIGHT)
+        .attr("preserveAspectRatio", "xMidYMid meet")
+        .style("display", d => hasAttachedImage(d) ? "block" : "none");
+
+    nodeEnter.append("text")
+        .attr("class", "label")
+        .attr("x", 0).attr("y", 0)
+        .text(d => { const n = d.data.name || ""; return isImageNodeName(n) ? "" : n; });
+
+    /* Document icon indicator */
+    const docIcon = nodeEnter.append("g")
+        .attr("class", "doc-icon")
+        .style("display", d => hasAttachedDocs(d) ? "block" : "none")
+        .style("cursor", "pointer")
+        .on("click", (event, d) => { event.stopPropagation(); showDocTooltip(d, event); });
+
+    docIcon.append("rect")
+        .attr("width", 18).attr("height", 18)
+        .attr("rx", 4).attr("ry", 4)
+        .attr("fill", "#4f46e5").attr("opacity", 0.15);
+
+    docIcon.append("text")
+        .attr("x", 9).attr("y", 13)
+        .attr("text-anchor", "middle")
+        .attr("font-size", "11px")
+        .attr("fill", "#4f46e5")
+        .attr("font-weight", "700")
+        .attr("pointer-events", "none")
+        .text(d => hasAttachedDocs(d) ? "\\uD83D\\uDCCE" : "");
+
+    /* Link icon indicator */
+    const linkIcon = nodeEnter.append("g")
+        .attr("class", "link-icon")
+        .style("display", d => hasAttachedLinks(d) ? "block" : "none")
+        .style("cursor", "pointer")
+        .on("click", (event, d) => { event.stopPropagation(); showLinkTooltip(d, event); });
+
+    linkIcon.append("rect")
+        .attr("width", 18).attr("height", 18)
+        .attr("rx", 4).attr("ry", 4)
+        .attr("fill", "#059669").attr("opacity", 0.15);
+
+    linkIcon.append("text")
+        .attr("x", 9).attr("y", 13)
+        .attr("text-anchor", "middle")
+        .attr("font-size", "11px")
+        .attr("fill", "#059669")
+        .attr("font-weight", "700")
+        .attr("pointer-events", "none")
+        .text(d => hasAttachedLinks(d) ? "\\uD83D\\uDD17" : "");
+
+    const btnEnter = nodeEnter.append("g")
+        .attr("class", "node-button")
+        .style("display", d => (d.children || d._children) ? "block" : "none")
+        .on("click", (event, d) => { event.stopPropagation(); toggle(d); update(d); });
+
+    btnEnter.append("circle").attr("r", BTN_RADIUS).attr("cx", 0).attr("cy", 0);
+    btnEnter.append("text").attr("x", 0).attr("y", 3).attr("text-anchor", "middle").text(btnSymbol);
+
+    /* ---- UPDATE + MERGE ---- */
+    const nodeMerge = nodeEnter.merge(node);
+
+    nodeMerge.transition().duration(DURATION)
+        .attr("transform", d => nodeTransform(d));
+
+    nodeMerge.select("rect")
+        .attr("x", d => rectX(d))
+        .attr("y", d => rectY(d))
+        .attr("width", d => d.__w)
+        .attr("height", d => d.__h)
+        .style("fill", d => nodeFillByDepth(d));
+
+    /* Text label: if attached image, position below the image; otherwise centred */
+    nodeMerge.select("text.label")
+        .attr("x", d => textX(d))
+        .attr("y", d => hasAttachedImage(d) ? d.__h / 2 - 10 : 0);
+
+    /* Document icon: position at top-right of the rect */
+    nodeMerge.select("g.doc-icon")
+        .style("display", d => hasAttachedDocs(d) ? "block" : "none")
+        .attr("transform", d => {
+            const rx = rectX(d);
+            const ry = rectY(d);
+            return "translate(" + (rx + d.__w - 22) + "," + (ry + 2) + ")";
+        });
+
+    /* Link icon: position next to doc icon (or at top-right if no docs) */
+    nodeMerge.select("g.link-icon")
+        .style("display", d => hasAttachedLinks(d) ? "block" : "none")
+        .attr("transform", d => {
+            const rx = rectX(d);
+            const ry = rectY(d);
+            const offset = hasAttachedDocs(d) ? 42 : 22;
+            return "translate(" + (rx + d.__w - offset) + "," + (ry + 2) + ")";
+        });
+
+    /* Standalone IMAGE: node image */
+    nodeMerge.select("image.img")
+        .attr("x", d => currentLayout === "ltr" ? 12 : -IMG_WIDTH / 2)
+        .attr("y", -IMG_HEIGHT/2)
+        .attr("width", IMG_WIDTH).attr("height", IMG_HEIGHT)
+        .style("display", d => isImageNodeName(d.data.name) ? "block" : "none")
+        .attr("href", d => isImageNodeName(d.data.name) ? getImageSrc(d.data.name) : "");
+
+    /* Attached image: centred in upper portion of the rect */
+    nodeMerge.select("image.attached-img")
+        .attr("x", d => {
+            const rx = rectX(d);
+            return rx + (d.__w - IMG_WIDTH) / 2;
+        })
+        .attr("y", d => rectY(d) + 6)
+        .attr("width", IMG_WIDTH).attr("height", IMG_HEIGHT)
+        .style("display", d => hasAttachedImage(d) ? "block" : "none")
+        .attr("href", d => hasAttachedImage(d) ? d.data.attachedImage : "");
+
+    nodeMerge.select("g.node-button")
+        .style("display", d => (d.children || d._children) ? "block" : "none");
+
+    nodeMerge.select("g.node-button circle")
+        .attr("cx", d => btnCx(d)).attr("cy", d => btnCy(d));
+    nodeMerge.select("g.node-button text")
+        .attr("x", d => btnCx(d)).attr("y", d => btnCy(d) + 3)
+        .text(btnSymbol);
+
+    /* ---- EXIT ---- */
+    const exitPos = nodePos(source);
+    node.exit().transition().duration(DURATION)
+        .attr("transform", "translate(" + exitPos.tx + "," + exitPos.ty + ")")
+        .remove();
+
+    /* ---- LINKS ---- */
+    const link = g.selectAll("path.link")
+        .data(links, d => d.target.id);
+
+    const linkEnter = link.enter().insert("path", "g")
+        .attr("class", "link")
+        .attr("d", () => diagonalOrigin(source));
+
+    linkEnter.merge(link).transition().duration(DURATION)
+        .attr("d", d => diagonal(d));
+
+    link.exit().transition().duration(DURATION)
+        .attr("d", () => diagonalOrigin(source))
+        .remove();
+
+    /* Store old positions */
+    nodes.forEach(d => { d.x0 = d.x; d.y0 = d.y; });
+}
+
+window.__nodeIdCounter = 0;
+init();
+<\/script>
+</body>
+</html>`;
+}
+
+/* -------------------------
+   DOWNLOAD FILE
+------------------------- */
+function downloadFile(filename, content, mimeType = "text/html;charset=utf-8"){
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
+
+/* -------------------------
+   MAIN PROCESS
+------------------------- */
+function processAndDownload(){
+    const mapTitle = document.getElementById("mapTitle").value.trim() || "Mind Map";
+    let opmlStr = "";
+
+    if(currentMode === "builder"){
+        if(nodes.length === 0){
+            alert("Please add some nodes to your mind map.");
+            return;
+        }
+        opmlStr = builderToOPML(mapTitle);
+    }else if(currentMode === "notebooklm"){
+        opmlStr = document.getElementById("notebooklmData").value.trim();
+        if(!opmlStr){
+            alert("Please paste the extracted OPML from NotebookLM.");
+            return;
+        }
+    }else{
+        opmlStr = document.getElementById("opmlData").value.trim();
+        if(!opmlStr){
+            alert("Please paste OPML code.");
+            return;
+        }
+    }
+
+    const outHtml = generateInteractiveMapHTML(opmlStr, mapTitle, document.getElementById("layoutSelect").value);
+    const safeName = mapTitle.replace(/[\\/:*?"<>|]/g, "_").trim() || "Mind Map";
+    downloadFile(safeName + ".html", outHtml);
+}
+
+/* -------------------------
+   INIT HELPERS
+------------------------- */
+setupDropZone("opmlData", "dropZoneOpml", "processingOpml");
+
+// Load any previously saved work
+loadFromStorage();
+
+// Builder initial render
+updateBuilderButtons();
+renderNodes();
+</script>
+</body>
+</html>
